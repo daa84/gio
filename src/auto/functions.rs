@@ -2,11 +2,13 @@
 // DO NOT EDIT
 
 use Error;
+use File;
 use Icon;
 use Resource;
 use ResourceLookupFlags;
 use ffi;
 use glib;
+use glib::object::IsA;
 use glib::translate::*;
 use std;
 use std::ptr;
@@ -122,9 +124,11 @@ pub fn content_type_get_symbolic_icon(type_: &str) -> Option<Icon> {
 //    unsafe { TODO: call ffi::g_content_type_guess() }
 //}
 
-//pub fn content_type_guess_for_tree<P: IsA</*Ignored*/File>>(root: &P) -> Vec<String> {
-//    unsafe { TODO: call ffi::g_content_type_guess_for_tree() }
-//}
+pub fn content_type_guess_for_tree<P: IsA<File>>(root: &P) -> Vec<String> {
+    unsafe {
+        FromGlibPtrContainer::from_glib_full(ffi::g_content_type_guess_for_tree(root.to_glib_none().0))
+    }
+}
 
 pub fn content_type_is_a(type_: &str, supertype: &str) -> bool {
     unsafe {

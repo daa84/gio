@@ -13,6 +13,8 @@ use glib::signal::connect;
 use glib::translate::*;
 use glib_ffi;
 use gobject_ffi;
+#[cfg(feature = "v2_40")]
+use libc;
 use std::boxed::Box as Box_;
 use std::mem::transmute;
 
@@ -50,7 +52,7 @@ pub trait ApplicationExt {
     fn activate(&self);
 
     //#[cfg(feature = "v2_42")]
-    //fn add_main_option<'a, P: Into<Option<&'a str>>>(&self, long_name: &str, short_name: /*Unimplemented*/Fundamental: Char, flags: /*Ignored*/glib::OptionFlags, arg: /*Ignored*/glib::OptionArg, description: &str, arg_description: P);
+    //fn add_main_option<'a, P: Into<Option<&'a str>>>(&self, long_name: &str, short_name: /*Unimplemented*/Fundamental: Char, flags: glib::OptionFlags, arg: glib::OptionArg, description: &str, arg_description: P);
 
     //#[cfg(feature = "v2_40")]
     //fn add_main_option_entries(&self, entries: /*Ignored*/&[&glib::OptionEntry]);
@@ -147,8 +149,8 @@ pub trait ApplicationExt {
 
     //fn connect_command_line<Unsupported or ignored types>(&self, f: F) -> u64;
 
-    //#[cfg(feature = "v2_40")]
-    //fn connect_handle_local_options<Unsupported or ignored types>(&self, f: F) -> u64;
+    #[cfg(feature = "v2_40")]
+    fn connect_handle_local_options<F: Fn(&Self, &glib::VariantDict) -> i32 + 'static>(&self, f: F) -> u64;
 
     fn connect_shutdown<F: Fn(&Self) + 'static>(&self, f: F) -> u64;
 
@@ -163,7 +165,7 @@ impl<O: IsA<Application> + IsA<glib::object::Object>> ApplicationExt for O {
     }
 
     //#[cfg(feature = "v2_42")]
-    //fn add_main_option<'a, P: Into<Option<&'a str>>>(&self, long_name: &str, short_name: /*Unimplemented*/Fundamental: Char, flags: /*Ignored*/glib::OptionFlags, arg: /*Ignored*/glib::OptionArg, description: &str, arg_description: P) {
+    //fn add_main_option<'a, P: Into<Option<&'a str>>>(&self, long_name: &str, short_name: /*Unimplemented*/Fundamental: Char, flags: glib::OptionFlags, arg: glib::OptionArg, description: &str, arg_description: P) {
     //    unsafe { TODO: call ffi::g_application_add_main_option() }
     //}
 
@@ -435,10 +437,14 @@ impl<O: IsA<Application> + IsA<glib::object::Object>> ApplicationExt for O {
     //    Ignored command_line: Gio.ApplicationCommandLine
     //}
 
-    //#[cfg(feature = "v2_40")]
-    //fn connect_handle_local_options<Unsupported or ignored types>(&self, f: F) -> u64 {
-    //    Ignored options: GLib.VariantDict
-    //}
+    #[cfg(feature = "v2_40")]
+    fn connect_handle_local_options<F: Fn(&Self, &glib::VariantDict) -> i32 + 'static>(&self, f: F) -> u64 {
+        unsafe {
+            let f: Box_<Box_<Fn(&Self, &glib::VariantDict) -> i32 + 'static>> = Box_::new(Box_::new(f));
+            connect(self.to_glib_none().0, "handle-local-options",
+                transmute(handle_local_options_trampoline::<Self> as usize), Box_::into_raw(f) as *mut _)
+        }
+    }
 
     fn connect_shutdown<F: Fn(&Self) + 'static>(&self, f: F) -> u64 {
         unsafe {
@@ -462,6 +468,14 @@ where P: IsA<Application> {
     callback_guard!();
     let f: &Box_<Fn(&P) + 'static> = transmute(f);
     f(&Application::from_glib_none(this).downcast_unchecked())
+}
+
+#[cfg(feature = "v2_40")]
+unsafe extern "C" fn handle_local_options_trampoline<P>(this: *mut ffi::GApplication, options: *mut glib_ffi::GVariantDict, f: glib_ffi::gpointer) -> libc::c_int
+where P: IsA<Application> {
+    callback_guard!();
+    let f: &Box_<Fn(&P, &glib::VariantDict) -> i32 + 'static> = transmute(f);
+    f(&Application::from_glib_none(this).downcast_unchecked(), &from_glib_none(options))
 }
 
 unsafe extern "C" fn shutdown_trampoline<P>(this: *mut ffi::GApplication, f: glib_ffi::gpointer)
